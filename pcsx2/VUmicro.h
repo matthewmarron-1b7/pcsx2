@@ -6,6 +6,10 @@
 #include "VU.h"
 #include "VUops.h"
 #include "R5900.h"
+#include "Config.h"
+
+#include <memory>
+#include <vector>
 
 static const uint VU0_MEMSIZE	= 0x1000;		// 4kb
 static const uint VU0_PROGSIZE	= 0x1000;		// 4kb
@@ -23,8 +27,9 @@ static const uint VU1_PROGMASK	= VU1_PROGSIZE-1;
 // --------------------------------------------------------------------------------------
 //  BaseVUmicroCPU
 // --------------------------------------------------------------------------------------
-// Layer class for possible future implementation (currently is nothing more than a type-safe
-// type define).
+// Abstract base class that every VU execution backend must implement.  Instances are
+// obtained through the VUPluginRegistry (see below) or through the well-known globals
+// CpuVU0 / CpuVU1.
 //
 class BaseVUmicroCPU
 {
@@ -76,6 +81,64 @@ public:
 	// Use this method to resume execution of VU1.
 	virtual void ResumeXGkick() {}
 };
+
+// --------------------------------------------------------------------------------------
+//  VUPluginDescriptor / VUPluginRegistry
+// --------------------------------------------------------------------------------------
+// A lightweight plugin registry that maps a VUBackendType to factory functions for
+// creating VU0 and VU1 backend instances.  Plugins register themselves at startup via
+// VUPluginRegistry::Register().  VMManager then queries the registry when selecting
+// the active backend for CpuVU0 / CpuVU1.
+//
+// New backends only need to:
+//   1. Implement BaseVUmicroCPU,
+//   2. Provide a VUPluginDescriptor (see GpuVU/GpuVUmicro.h for an example), and
+//   3. Call VUPluginRegistry::Register() from a static initialiser.
+//
+
+struct VUPluginDescriptor
+{
+	/// The backend this descriptor describes.
+	VUBackendType type;
+
+	/// Short identifier used in log messages and UI.
+	const char* shortName;
+
+	/// Human-readable description shown in the settings dialog.
+	const char* longName;
+
+	/// Return true when the backend can be used on the current system.
+	/// (e.g. false when Vulkan is unavailable for the GPU backend)
+	bool (*IsAvailable)();
+
+	/// Factory: create the VU0 backend instance (caller takes ownership).
+	std::unique_ptr<BaseVUmicroCPU> (*CreateVU0)();
+
+	/// Factory: create the VU1 backend instance (caller takes ownership).
+	std::unique_ptr<BaseVUmicroCPU> (*CreateVU1)();
+};
+
+namespace VUPluginRegistry
+{
+	/// Register a new VU backend.  Should be called once per plugin at startup.
+	void Register(const VUPluginDescriptor& descriptor);
+
+	/// Look up a previously registered descriptor by type.
+	/// Returns nullptr when the type has not been registered.
+	const VUPluginDescriptor* Find(VUBackendType type);
+
+	/// Return all registered descriptors, in registration order.
+	const std::vector<VUPluginDescriptor>& GetAll();
+
+	/// Create the VU0 instance for the given backend, or nullptr on failure.
+	std::unique_ptr<BaseVUmicroCPU> CreateVU0(VUBackendType type);
+
+	/// Create the VU1 instance for the given backend, or nullptr on failure.
+	std::unique_ptr<BaseVUmicroCPU> CreateVU1(VUBackendType type);
+
+	/// Register all built-in backends.  Called once during emulator initialisation.
+	void RegisterBuiltins();
+} // namespace VUPluginRegistry
 
 // --------------------------------------------------------------------------------------
 //  InterpVU0 / InterpVU1
