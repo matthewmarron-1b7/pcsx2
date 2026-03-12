@@ -468,6 +468,10 @@ Pcsx2Config::RecompilerOptions::RecompilerOptions()
 	fpuOverflow = true;
 	//fpuExtraOverflow = false;
 	//fpuFullMode = false;
+
+	// VU backend defaults: Recompiler where available, Interpreter elsewhere.
+	VU0Backend = VUBackendType::Recompiler;
+	VU1Backend = VUBackendType::Recompiler;
 }
 
 void Pcsx2Config::RecompilerOptions::ApplySanityCheck()
@@ -519,6 +523,14 @@ void Pcsx2Config::RecompilerOptions::ApplySanityCheck()
 		vu1SignOverflow = RecompilerOptions().vu1SignOverflow;
 		vu1Underflow = RecompilerOptions().vu1Underflow;
 	}
+
+	// Honour the legacy EnableVU0/1 booleans for backwards compatibility: if the old
+	// "disable recompiler" flag was set, force the backend to Interpreter unless the
+	// user has explicitly selected GPU (which has its own fallback).
+	if (!EnableVU0 && VU0Backend == VUBackendType::Recompiler)
+		VU0Backend = VUBackendType::Interpreter;
+	if (!EnableVU1 && VU1Backend == VUBackendType::Recompiler)
+		VU1Backend = VUBackendType::Interpreter;
 }
 
 void Pcsx2Config::RecompilerOptions::LoadSave(SettingsWrapper& wrap)
@@ -545,6 +557,10 @@ void Pcsx2Config::RecompilerOptions::LoadSave(SettingsWrapper& wrap)
 	SettingsWrapBitBool(fpuOverflow);
 	SettingsWrapBitBool(fpuExtraOverflow);
 	SettingsWrapBitBool(fpuFullMode);
+
+	// VU backend selection (stored as integer for forward-compatibility)
+	SettingsWrapIntEnumEx(VU0Backend, "VU0Backend");
+	SettingsWrapIntEnumEx(VU1Backend, "VU1Backend");
 }
 
 u32 Pcsx2Config::RecompilerOptions::GetEEClampMode() const
@@ -566,12 +582,16 @@ u32 Pcsx2Config::RecompilerOptions::GetVUClampMode() const
 
 bool Pcsx2Config::RecompilerOptions::operator!=(const RecompilerOptions& right) const
 {
-	return !OpEqu(bitset);
+	return !OpEqu(bitset) ||
+	       VU0Backend != right.VU0Backend ||
+	       VU1Backend != right.VU1Backend;
 }
 
 bool Pcsx2Config::RecompilerOptions::operator==(const RecompilerOptions& right) const
 {
-	return OpEqu(bitset);
+	return OpEqu(bitset) &&
+	       VU0Backend == right.VU0Backend &&
+	       VU1Backend == right.VU1Backend;
 }
 
 bool Pcsx2Config::CpuOptions::CpusChanged(const CpuOptions& right) const
@@ -579,7 +599,9 @@ bool Pcsx2Config::CpuOptions::CpusChanged(const CpuOptions& right) const
 	return (Recompiler.EnableEE != right.Recompiler.EnableEE ||
 			Recompiler.EnableIOP != right.Recompiler.EnableIOP ||
 			Recompiler.EnableVU0 != right.Recompiler.EnableVU0 ||
-			Recompiler.EnableVU1 != right.Recompiler.EnableVU1);
+			Recompiler.EnableVU1 != right.Recompiler.EnableVU1 ||
+			Recompiler.VU0Backend != right.Recompiler.VU0Backend ||
+			Recompiler.VU1Backend != right.Recompiler.VU1Backend);
 }
 
 bool Pcsx2Config::CpuOptions::operator!=(const CpuOptions& right) const

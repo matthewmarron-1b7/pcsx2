@@ -160,6 +160,11 @@ static std::atomic<VMState> s_state{VMState::Shutdown};
 static bool s_cpu_implementation_changed = false;
 static Threading::ThreadHandle s_vm_thread_handle;
 
+// Owned VU backend instances created by the plugin registry (used when the backend is
+// not one of the built-in static globals, e.g. the GPU compute backend).
+static std::unique_ptr<BaseVUmicroCPU> s_vu0_backend_instance;
+static std::unique_ptr<BaseVUmicroCPU> s_vu1_backend_instance;
+
 static std::deque<std::thread> s_save_state_threads;
 static std::mutex s_save_state_threads_mutex;
 
@@ -2647,6 +2652,9 @@ void VMManager::LogCPUCapabilities()
 
 void VMManager::InitializeCPUProviders()
 {
+	// Ensure all VU backend plugins are registered before any VU backend is selected.
+	VUPluginRegistry::RegisterBuiltins();
+
 #ifdef _M_X86 // TODO(Stenzek): Remove me once EE/VU/IOP recs are added.
 	recCpu.Reserve();
 	psxRec.Reserve();
@@ -2665,6 +2673,10 @@ void VMManager::InitializeCPUProviders()
 
 void VMManager::ShutdownCPUProviders()
 {
+	// Release any plugin-owned VU instances before shutting down the CPU providers.
+	s_vu0_backend_instance.reset();
+	s_vu1_backend_instance.reset();
+
 	if (newVifDynaRec)
 	{
 		dVifRelease(1);
@@ -2687,6 +2699,10 @@ void VMManager::ShutdownCPUProviders()
 
 void VMManager::UpdateCPUImplementations()
 {
+	// Release any previously allocated plugin-registry VU instances.
+	s_vu0_backend_instance.reset();
+	s_vu1_backend_instance.reset();
+
 	if (GSDumpReplayer::IsReplayingDump())
 	{
 		Cpu = &GSDumpReplayerCpu;
@@ -2696,18 +2712,74 @@ void VMManager::UpdateCPUImplementations()
 		return;
 	}
 
+	// Helper: resolve a VUBackendType to the appropriate BaseVUmicroCPU*, using the
+	// static globals for the well-known backends and the plugin registry for others.
+	// Returns nullptr when the backend cannot be created; caller falls back to interp.
+	const auto resolve_vu_backend = [](VUBackendType backend_type, bool is_vu1,
+	                                   std::unique_ptr<BaseVUmicroCPU>& owned_out)
+		-> BaseVUmicroCPU*
+	{
+		switch (backend_type)
+		{
+#if defined(_M_X86) || defined(_M_ARM64)
+		case VUBackendType::Recompiler:
+			return is_vu1 ? static_cast<BaseVUmicroCPU*>(&CpuMicroVU1)
+			              : static_cast<BaseVUmicroCPU*>(&CpuMicroVU0);
+#endif
+		case VUBackendType::Interpreter:
+			return is_vu1 ? static_cast<BaseVUmicroCPU*>(&CpuIntVU1)
+			              : static_cast<BaseVUmicroCPU*>(&CpuIntVU0);
+		default:
+			// Unknown or platform-unavailable backend – try the registry.
+			owned_out = is_vu1 ? VUPluginRegistry::CreateVU1(backend_type)
+			                   : VUPluginRegistry::CreateVU0(backend_type);
+			return owned_out.get();
+		}
+	};
+
 #ifdef _M_X86 // TODO(Stenzek): Remove me once EE/VU/IOP recs are added.
 	Cpu = CHECK_EEREC ? &recCpu : &intCpu;
 	psxCpu = CHECK_IOPREC ? &psxRec : &psxInt;
 
-	CpuVU0 = EmuConfig.Cpu.Recompiler.EnableVU0 ? static_cast<BaseVUmicroCPU*>(&CpuMicroVU0) : static_cast<BaseVUmicroCPU*>(&CpuIntVU0);
-	CpuVU1 = EmuConfig.Cpu.Recompiler.EnableVU1 ? static_cast<BaseVUmicroCPU*>(&CpuMicroVU1) : static_cast<BaseVUmicroCPU*>(&CpuIntVU1);
+	// Determine VU0 backend.
+	{
+		const VUBackendType vu0_type = EmuConfig.Cpu.Recompiler.VU0Backend;
+		BaseVUmicroCPU* vu0 = resolve_vu_backend(vu0_type, /*is_vu1=*/false, s_vu0_backend_instance);
+		if (!vu0)
+		{
+			Console.Warning("VMManager: VU0 backend unavailable, falling back to interpreter.");
+			vu0 = &CpuIntVU0;
+		}
+		CpuVU0 = vu0;
+	}
+
+	// Determine VU1 backend.
+	{
+		const VUBackendType vu1_type = EmuConfig.Cpu.Recompiler.VU1Backend;
+		BaseVUmicroCPU* vu1 = resolve_vu_backend(vu1_type, /*is_vu1=*/true, s_vu1_backend_instance);
+		if (!vu1)
+		{
+			Console.Warning("VMManager: VU1 backend unavailable, falling back to interpreter.");
+			vu1 = &CpuIntVU1;
+		}
+		CpuVU1 = vu1;
+	}
 #else
 	Cpu = &intCpu;
 	psxCpu = &psxInt;
 
-	CpuVU0 = &CpuIntVU0;
-	CpuVU1 = &CpuIntVU1;
+	// On non-x86 platforms, use the registry for VU backend selection
+	// (GPU backend may be available on ARM64 platforms with Vulkan).
+	{
+		const VUBackendType vu0_type = EmuConfig.Cpu.Recompiler.VU0Backend;
+		BaseVUmicroCPU* vu0 = resolve_vu_backend(vu0_type, /*is_vu1=*/false, s_vu0_backend_instance);
+		CpuVU0 = vu0 ? vu0 : &CpuIntVU0;
+	}
+	{
+		const VUBackendType vu1_type = EmuConfig.Cpu.Recompiler.VU1Backend;
+		BaseVUmicroCPU* vu1 = resolve_vu_backend(vu1_type, /*is_vu1=*/true, s_vu1_backend_instance);
+		CpuVU1 = vu1 ? vu1 : &CpuIntVU1;
+	}
 #endif
 }
 
@@ -2718,7 +2790,8 @@ void VMManager::Internal::ClearCPUExecutionCaches()
 
 #ifdef _M_X86 // TODO(Stenzek): Remove me once EE/VU/IOP recs are added.
 	// mVU's VU0 needs to be properly initialized for macro mode even if it's not used for micro mode!
-	if (CHECK_EEREC && !EmuConfig.Cpu.Recompiler.EnableVU0)
+	// This is needed when VU0 is running the interpreter or GPU backend instead of the recompiler.
+	if (CHECK_EEREC && EmuConfig.Cpu.Recompiler.VU0Backend != VUBackendType::Recompiler)
 		CpuMicroVU0.Reset();
 #endif
 
@@ -3365,12 +3438,14 @@ void VMManager::WarnAboutUnsafeSettings()
 		append(ICON_FA_CIRCLE_EXCLAMATION,
 			TRANSLATE_SV("VMManager", "EE Recompiler is not enabled, this will significantly reduce performance."));
 	}
-	if (!EmuConfig.Cpu.Recompiler.EnableVU0)
+	if (!EmuConfig.Cpu.Recompiler.EnableVU0 ||
+	    EmuConfig.Cpu.Recompiler.VU0Backend == VUBackendType::Interpreter)
 	{
 		append(ICON_FA_CIRCLE_EXCLAMATION,
 			TRANSLATE_SV("VMManager", "VU0 Recompiler is not enabled, this will significantly reduce performance."));
 	}
-	if (!EmuConfig.Cpu.Recompiler.EnableVU1)
+	if (!EmuConfig.Cpu.Recompiler.EnableVU1 ||
+	    EmuConfig.Cpu.Recompiler.VU1Backend == VUBackendType::Interpreter)
 	{
 		append(ICON_FA_CIRCLE_EXCLAMATION,
 			TRANSLATE_SV("VMManager", "VU1 Recompiler is not enabled, this will significantly reduce performance."));

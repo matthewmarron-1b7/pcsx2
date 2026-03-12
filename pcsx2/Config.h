@@ -614,6 +614,19 @@ struct Pcsx2Config
 		bool operator!=(const ProfilerOptions& right) const;
 	};
 
+	// -----------------------------------------------------------------------
+	// VUBackendType: selects the execution backend for the VU0/VU1 units.
+	// Interpreter  - pure software interpreter (always available)
+	// Recompiler   - microVU JIT recompiler (x86 / ARM64)
+	// GPU          - Vulkan compute-shader backend
+	// -----------------------------------------------------------------------
+	enum class VUBackendType : u8
+	{
+		Interpreter = 0,
+		Recompiler  = 1,
+		GPU         = 2,
+	};
+
 	// ------------------------------------------------------------------------
 	struct RecompilerOptions
 	{
@@ -648,6 +661,11 @@ struct Pcsx2Config
 		bool
 			PauseOnTLBMiss : 1;
 		BITFIELD_END
+
+		// Execution backend for VU0 and VU1.
+		// Defaults to Recompiler on x86/ARM64, Interpreter elsewhere.
+		VUBackendType VU0Backend = VUBackendType::Recompiler;
+		VUBackendType VU1Backend = VUBackendType::Recompiler;
 
 		RecompilerOptions();
 		void ApplySanityCheck();

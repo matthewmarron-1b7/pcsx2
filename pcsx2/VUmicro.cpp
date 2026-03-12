@@ -7,8 +7,119 @@
 #include "GS.h"
 #include "Gif_Unit.h"
 
+#include "common/Console.h"
+
+#include <algorithm>
+
 BaseVUmicroCPU* CpuVU0 = nullptr;
 BaseVUmicroCPU* CpuVU1 = nullptr;
+
+// --------------------------------------------------------------------------------------
+//  VUPluginRegistry implementation
+// --------------------------------------------------------------------------------------
+
+namespace VUPluginRegistry
+{
+	static std::vector<VUPluginDescriptor> s_plugins;
+
+	void Register(const VUPluginDescriptor& descriptor)
+	{
+		// Prevent duplicate registrations.
+		for (const auto& p : s_plugins)
+		{
+			if (p.type == descriptor.type)
+				return;
+		}
+		s_plugins.push_back(descriptor);
+	}
+
+	const VUPluginDescriptor* Find(VUBackendType type)
+	{
+		for (const auto& p : s_plugins)
+		{
+			if (p.type == type)
+				return &p;
+		}
+		return nullptr;
+	}
+
+	const std::vector<VUPluginDescriptor>& GetAll()
+	{
+		return s_plugins;
+	}
+
+	std::unique_ptr<BaseVUmicroCPU> CreateVU0(VUBackendType type)
+	{
+		const VUPluginDescriptor* desc = Find(type);
+		if (!desc)
+		{
+			Console.Warning("VUPluginRegistry: unknown backend type %d - falling back to interpreter", static_cast<int>(type));
+			desc = Find(VUBackendType::Interpreter);
+		}
+		if (desc && desc->IsAvailable())
+			return desc->CreateVU0();
+
+		// Ultimate fallback: use the built-in interpreter.
+		Console.Warning("VUPluginRegistry: backend '%s' unavailable - using interpreter", desc ? desc->shortName : "?");
+		const VUPluginDescriptor* interp = Find(VUBackendType::Interpreter);
+		return interp ? interp->CreateVU0() : nullptr;
+	}
+
+	std::unique_ptr<BaseVUmicroCPU> CreateVU1(VUBackendType type)
+	{
+		const VUPluginDescriptor* desc = Find(type);
+		if (!desc)
+		{
+			Console.Warning("VUPluginRegistry: unknown backend type %d - falling back to interpreter", static_cast<int>(type));
+			desc = Find(VUBackendType::Interpreter);
+		}
+		if (desc && desc->IsAvailable())
+			return desc->CreateVU1();
+
+		Console.Warning("VUPluginRegistry: backend '%s' unavailable - using interpreter", desc ? desc->shortName : "?");
+		const VUPluginDescriptor* interp = Find(VUBackendType::Interpreter);
+		return interp ? interp->CreateVU1() : nullptr;
+	}
+
+	// Forward declarations - the GPU backend registers itself via RegisterBuiltins().
+	void RegisterGpuBackend();
+
+	void RegisterBuiltins()
+	{
+		// --- Interpreter ---
+		Register({
+			VUBackendType::Interpreter,
+			"interp",
+			"Software Interpreter (always available)",
+			[]() -> bool { return true; },
+			[]() -> std::unique_ptr<BaseVUmicroCPU> { return std::make_unique<InterpVU0>(); },
+			[]() -> std::unique_ptr<BaseVUmicroCPU> { return std::make_unique<InterpVU1>(); },
+		});
+
+		// --- microVU Recompiler ---
+		// NOTE: The factory functions here create fresh, unreserved instances.
+		// VMManager::UpdateCPUImplementations() uses the pre-reserved static globals
+		// (CpuMicroVU0 / CpuMicroVU1) directly rather than going through these factories.
+		// These factories exist so that the registry is a complete catalogue of
+		// available backends, but callers must call Reserve() before using
+		// a recompiler instance obtained this way.
+		Register({
+			VUBackendType::Recompiler,
+			"mVU",
+			"microVU JIT Recompiler",
+#if defined(_M_X86) || defined(_M_ARM64)
+			[]() -> bool { return true; },
+#else
+			[]() -> bool { return false; },
+#endif
+			[]() -> std::unique_ptr<BaseVUmicroCPU> { return std::make_unique<recMicroVU0>(); },
+			[]() -> std::unique_ptr<BaseVUmicroCPU> { return std::make_unique<recMicroVU1>(); },
+		});
+
+		// --- GPU Compute backend ---
+		RegisterGpuBackend();
+	}
+} // namespace VUPluginRegistry
 
 __inline u32 CalculateMinRunCycles(u32 cycles, bool requiresAccurateCycles)
 {
