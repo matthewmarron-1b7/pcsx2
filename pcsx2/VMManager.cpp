@@ -41,7 +41,6 @@
 #include "USB/USB.h"
 #include "Vif_Dynarec.h"
 #include "VMManager.h"
-#include "GpuVU/GpuVUmicro.h"
 #include "ps2/BiosTools.h"
 
 #include "common/Console.h"
@@ -2769,8 +2768,18 @@ void VMManager::UpdateCPUImplementations()
 	Cpu = &intCpu;
 	psxCpu = &psxInt;
 
-	CpuVU0 = &CpuIntVU0;
-	CpuVU1 = &CpuIntVU1;
+	// On non-x86 platforms, use the registry for VU backend selection
+	// (GPU backend may be available on ARM64 platforms with Vulkan).
+	{
+		const VUBackendType vu0_type = EmuConfig.Cpu.Recompiler.VU0Backend;
+		BaseVUmicroCPU* vu0 = resolve_vu_backend(vu0_type, /*is_vu1=*/false, s_vu0_backend_instance);
+		CpuVU0 = vu0 ? vu0 : &CpuIntVU0;
+	}
+	{
+		const VUBackendType vu1_type = EmuConfig.Cpu.Recompiler.VU1Backend;
+		BaseVUmicroCPU* vu1 = resolve_vu_backend(vu1_type, /*is_vu1=*/true, s_vu1_backend_instance);
+		CpuVU1 = vu1 ? vu1 : &CpuIntVU1;
+	}
 #endif
 }
 

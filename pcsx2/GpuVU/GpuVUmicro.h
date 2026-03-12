@@ -89,5 +89,6 @@ private:
 };
 
 /// Register the GPU backend with the VUPluginRegistry.
-/// Called automatically from VUPluginRegistry::RegisterBuiltins().
+/// Called automatically from VUPluginRegistry::RegisterBuiltins() via
+/// VUPluginRegistry::RegisterGpuBackend().
 void RegisterGpuVUBackend();

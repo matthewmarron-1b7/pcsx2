@@ -233,13 +233,13 @@ void exec_upper(uint op)
 			vu.VF[fd] = apply_dest(vu.VF[fd], result, dest);
 			update_mac_flags(result, dest);
 			return;
-		case 0x02u: result = vfs * 2.0; break; // FTOI4 (scale by 2^4)
-		case 0x03u: result = vfs * 16.0; break; // FTOI12
-		case 0x04u: result = vfs * 4096.0; break; // FTOI15
-		case 0x05u: result = vfs * (1.0/1.0);   break; // ITOF0
-		case 0x06u: result = vfs * (1.0/16.0);  break; // ITOF4
-		case 0x07u: result = vfs * (1.0/4096.0);break; // ITOF12
-		case 0x08u: result = vfs * (1.0/32768.0);break;// ITOF15
+		case 0x02u: result = vfs * 16.0;    break; // FTOI4  (scale by 2^4)
+		case 0x03u: result = vfs * 4096.0;  break; // FTOI12 (scale by 2^12)
+		case 0x04u: result = vfs * 32768.0; break; // FTOI15 (scale by 2^15)
+		case 0x05u: result = vfs; break; // ITOF0 (no scale: integer → float directly)
+		case 0x06u: result = vfs * (1.0/16.0);    break; // ITOF4  (2^-4 scale)
+		case 0x07u: result = vfs * (1.0/4096.0);  break; // ITOF12 (2^-12 scale)
+		case 0x08u: result = vfs * (1.0/32768.0); break; // ITOF15 (2^-15 scale)
 		default:
 			// CLIP, MR32, or other – needs CPU fallback
 			vu.needs_cpu_fallback = 1u;
