@@ -4,7 +4,7 @@
 #pragma once
 
 // --------------------------------------------------------------------------------------
-//  GpuVUmicro – Vulkan compute-shader VU backend
+//  GpuVUmicro - Vulkan compute-shader VU backend
 // --------------------------------------------------------------------------------------
 // This backend offloads VU microcode execution to the GPU using a Vulkan compute
 // pipeline.  The high-level flow for each Execute() call is:
@@ -28,7 +28,7 @@
 
 #include <memory>
 
-// Forward declaration – the implementation hides the Vulkan context behind a Pimpl.
+// Forward declaration - the implementation hides the Vulkan context behind a Pimpl.
 class GpuVUContext;
 
 // --------------------------------------------------------------------------------------

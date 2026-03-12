@@ -616,9 +616,9 @@ struct Pcsx2Config
 
 	// -----------------------------------------------------------------------
 	// VUBackendType: selects the execution backend for the VU0/VU1 units.
-	// Interpreter  – pure software interpreter (always available)
-	// Recompiler   – microVU JIT recompiler (x86 / ARM64)
-	// GPU          – Vulkan compute-shader backend
+	// Interpreter  - pure software interpreter (always available)
+	// Recompiler   - microVU JIT recompiler (x86 / ARM64)
+	// GPU          - Vulkan compute-shader backend
 	// -----------------------------------------------------------------------
 	enum class VUBackendType : u8
 	{

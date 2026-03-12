@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 //
-// vu_execute.glsl – Vulkan compute shader: PS2 Vector Unit microcode interpreter
+// vu_execute.glsl - Vulkan compute shader: PS2 Vector Unit microcode interpreter
 //
 // This shader is dispatched with a single work-group of one thread.  It reads the
 // complete VU state from a storage buffer, simulates up to 'push.cycles' VU clock
@@ -14,13 +14,13 @@
 // interpreter.
 //
 // Instruction encoding reference:
-//   Upper slot  bits[1]  – field-encoded FMAC operations  (ADD, SUB, MUL, MADD …)
-//   Lower slot  bits[0]  – branch / load-store / integer / FDIV / EFU operations
+//   Upper slot  (bits [5:0])  - field-encoded FMAC operations  (ADD, SUB, MUL, MADD ...)
+//   Lower slot  (bits [31:25]) - branch / load-store / integer / FDIV / EFU operations
 //   Both words share a 3-bit flag prefix in the upper word:
-//     bit 30  E-bit  – last instruction of a micro-program
-//     bit 29  M-bit  – (VU0 only) sets VUFLAG_MFLAGSET
-//     bit 28  D-bit  – debug break
-//     bit 27  T-bit  – debug break
+//     bit 30  E-bit  - last instruction of a micro-program
+//     bit 29  M-bit  - (VU0 only) sets VUFLAG_MFLAGSET
+//     bit 28  D-bit  - debug break
+//     bit 27  T-bit  - debug break
 
 #version 450
 #extension GL_EXT_shader_explicit_arithmetic_types_int32 : enable
@@ -34,9 +34,9 @@ layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 // VU register state + pipeline state (must match GpuVUState in GpuVUContext.h)
 struct GpuVUState
 {
-	// 32 × 128-bit floating-point vector registers (VF[0..31], each as vec4)
+	// 32 x 128-bit floating-point vector registers (VF[0..31], each as vec4)
 	vec4  VF[32];
-	// 32 × 32-bit slots for the 16-bit integer registers (VI[0..31])
+	// 32 x 32-bit slots for the 16-bit integer registers (VI[0..31])
 	uint  VI[32];
 	// Accumulator
 	vec4  ACC;
@@ -47,7 +47,7 @@ struct GpuVUState
 	uint  TPC;
 	// Cycle counter (incremented by the shader)
 	uint  cycle;
-	// E-bit encountered – micro-program end
+	// E-bit encountered - micro-program end
 	uint  ebit;
 	// Status / MAC / Clip flags
 	uint  macflag;
@@ -75,7 +75,7 @@ layout(push_constant) uniform PushConstants
 // Helper macros / constants
 // ---------------------------------------------------------------------------
 
-// PS2 "PS2 float" – flush denormals to zero, clamp to PS2 max.
+// PS2 "PS2 float" - flush denormals to zero, clamp to PS2 max.
 const float PS2_MAX_FLOAT = 3.40282346638528860e+38;
 
 float ps2_clamp(float v)
@@ -236,12 +236,12 @@ void exec_upper(uint op)
 		case 0x02u: result = vfs * 16.0;    break; // FTOI4  (scale by 2^4)
 		case 0x03u: result = vfs * 4096.0;  break; // FTOI12 (scale by 2^12)
 		case 0x04u: result = vfs * 32768.0; break; // FTOI15 (scale by 2^15)
-		case 0x05u: result = vfs; break; // ITOF0 (no scale: integer → float directly)
+		case 0x05u: result = vfs; break; // ITOF0 (no scale: integer -> float directly)
 		case 0x06u: result = vfs * (1.0/16.0);    break; // ITOF4  (2^-4 scale)
 		case 0x07u: result = vfs * (1.0/4096.0);  break; // ITOF12 (2^-12 scale)
 		case 0x08u: result = vfs * (1.0/32768.0); break; // ITOF15 (2^-15 scale)
 		default:
-			// CLIP, MR32, or other – needs CPU fallback
+			// CLIP, MR32, or other - needs CPU fallback
 			vu.needs_cpu_fallback = 1u;
 			return;
 		}
@@ -389,7 +389,7 @@ void exec_lower(uint op)
 	case 0x14u:
 		vu.VI[fd_field(op)] = vu.VI[fs] | vu.VI[ft];
 		break;
-	// --- Branch instructions – update TPC directly ---
+	// --- Branch instructions - update TPC directly ---
 	// IBEQ: if VIft == VIfs: PC += imm15 * 8
 	case 0x20u:
 		if (vu.VI[fs] == vu.VI[ft])
@@ -465,7 +465,7 @@ void main()
 		uint pc = vu.TPC;
 		if (pc + 7u > micro_size)
 		{
-			// PC out of range – treat as program end.
+			// PC out of range - treat as program end.
 			vu.VI[29] &= ~run_bit;
 			break;
 		}

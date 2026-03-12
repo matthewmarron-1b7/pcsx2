@@ -2,20 +2,20 @@
 // SPDX-License-Identifier: GPL-3.0+
 
 // --------------------------------------------------------------------------------------
-//  GpuVUmicro – Vulkan compute-shader VU backend (implementation)
+//  GpuVUmicro - Vulkan compute-shader VU backend (implementation)
 // --------------------------------------------------------------------------------------
 //
 // This file provides:
-//   1. GpuVUContext  – a minimal, self-contained Vulkan compute context that is wholly
+//   1. GpuVUContext  - a minimal, self-contained Vulkan compute context that is wholly
 //      independent of the GS rendering thread.  It owns its own VkInstance, VkDevice,
 //      compute VkQueue, command pool, and all pipeline / buffer resources.
-//   2. GpuVUmicro0 / GpuVUmicro1  – BaseVUmicroCPU implementations that delegate VU
+//   2. GpuVUmicro0 / GpuVUmicro1  - BaseVUmicroCPU implementations that delegate VU
 //      execution to the context via a single vkCmdDispatch call.
-//   3. RegisterGpuVUBackend()  – registers the GPU descriptor with VUPluginRegistry.
+//   3. RegisterGpuVUBackend()  - registers the GPU descriptor with VUPluginRegistry.
 //
 // Fallback strategy
 // -----------------
-// When Vulkan initialisation fails (Vulkan runtime absent, no suitable device, …) the
+// When Vulkan initialisation fails (Vulkan runtime absent, no suitable device, ...) the
 // context is simply not created.  GpuVUmicro0/1 then forward every call to the built-in
 // software interpreter so the emulator continues to work correctly.
 //
@@ -42,8 +42,8 @@
 
 struct alignas(16) GpuVUState
 {
-	float    VF[32][4];      // 32 × vec4
-	uint32_t VI[32];         // 32 × uint (only low 16 bits are valid)
+	float    VF[32][4];      // 32 x vec4
+	uint32_t VI[32];         // 32 x uint (only low 16 bits are valid)
 	float    ACC[4];         // accumulator vec4
 	float    Q;              // quotient register
 	float    P;              // EFU result register
@@ -195,7 +195,7 @@ bool GpuVUContext::CreateBuffers(VkDeviceSize stateSize, VkDeviceSize microSize,
 // This string is used when integrating full glslang compilation.
 // TODO(gpu-vu): load and compile vu_execute.glsl via glslang.
 
-bool GpuVUContext::CreatePipeline(const std::string& /* unused – shader is embedded */)
+bool GpuVUContext::CreatePipeline(const std::string& /* unused - shader is embedded */)
 {
 	// --- Descriptor set layout (3 SSBOs: state, micro, mem) ---
 	VkDescriptorSetLayoutBinding bindings[3] = {};
@@ -277,7 +277,7 @@ bool GpuVUContext::CreatePipeline(const std::string& /* unused – shader is emb
 	// implementation honest about what is complete.
 	Console.Warning("GpuVU: SPIR-V compilation via glslang not yet integrated; "
 	                "GPU VU backend will fall back to software interpreter for execution. "
-	                "Vulkan context and pipeline infrastructure is initialised.");
+	                "Vulkan context and pipeline infrastructure is initialized.");
 	return false;
 }
 
@@ -422,7 +422,7 @@ bool GpuVUContext::Initialize(bool isVU1)
 
 	VkPhysicalDeviceProperties props;
 	vkGetPhysicalDeviceProperties(m_phys_device, &props);
-	Console.WriteLn("GpuVU: Compute context initialised on '%s'.", props.deviceName);
+	Console.WriteLn("GpuVU: Compute context initialized on '%s'.", props.deviceName);
 	m_ready = true;
 	return true;
 }
@@ -657,7 +657,7 @@ void GpuVUmicro0::Execute(u32 cycles)
 	if (EnsureContext() && m_ctx->Execute(&VU0, cycles, /*isVU1=*/false))
 		return;
 
-	// GPU path unavailable or encountered unimplemented instructions – use CPU.
+	// GPU path unavailable or encountered unimplemented instructions - use CPU.
 	m_fallback.Execute(cycles);
 }
 

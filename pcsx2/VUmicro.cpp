@@ -53,14 +53,14 @@ namespace VUPluginRegistry
 		const VUPluginDescriptor* desc = Find(type);
 		if (!desc)
 		{
-			Console.Warning("VUPluginRegistry: unknown backend type %d – falling back to interpreter", static_cast<int>(type));
+			Console.Warning("VUPluginRegistry: unknown backend type %d - falling back to interpreter", static_cast<int>(type));
 			desc = Find(VUBackendType::Interpreter);
 		}
 		if (desc && desc->IsAvailable())
 			return desc->CreateVU0();
 
 		// Ultimate fallback: use the built-in interpreter.
-		Console.Warning("VUPluginRegistry: backend '%s' unavailable – using interpreter", desc ? desc->shortName : "?");
+		Console.Warning("VUPluginRegistry: backend '%s' unavailable - using interpreter", desc ? desc->shortName : "?");
 		const VUPluginDescriptor* interp = Find(VUBackendType::Interpreter);
 		return interp ? interp->CreateVU0() : nullptr;
 	}
@@ -70,18 +70,18 @@ namespace VUPluginRegistry
 		const VUPluginDescriptor* desc = Find(type);
 		if (!desc)
 		{
-			Console.Warning("VUPluginRegistry: unknown backend type %d – falling back to interpreter", static_cast<int>(type));
+			Console.Warning("VUPluginRegistry: unknown backend type %d - falling back to interpreter", static_cast<int>(type));
 			desc = Find(VUBackendType::Interpreter);
 		}
 		if (desc && desc->IsAvailable())
 			return desc->CreateVU1();
 
-		Console.Warning("VUPluginRegistry: backend '%s' unavailable – using interpreter", desc ? desc->shortName : "?");
+		Console.Warning("VUPluginRegistry: backend '%s' unavailable - using interpreter", desc ? desc->shortName : "?");
 		const VUPluginDescriptor* interp = Find(VUBackendType::Interpreter);
 		return interp ? interp->CreateVU1() : nullptr;
 	}
 
-	// Forward declarations – the GPU backend registers itself via RegisterBuiltins().
+	// Forward declarations - the GPU backend registers itself via RegisterBuiltins().
 	void RegisterGpuBackend();
 
 	void RegisterBuiltins()
