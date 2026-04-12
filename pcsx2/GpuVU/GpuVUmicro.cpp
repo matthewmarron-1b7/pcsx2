@@ -233,6 +233,10 @@ static const char VU_EXECUTE_GLSL[] = R"GLSL(
 //     bits  [5:0]  secondary lower opcode (when primary == 0x40)
 
 #version 450
+// Re-enable explicit 32-bit type helpers as required by earlier shader revision.
+// All integer arithmetic uses standard 'int'/'uint' which already provide 32-bit
+// semantics in GLSL 4.50, so the extension is kept for forward compatibility.
+#extension GL_EXT_shader_explicit_arithmetic_types_int32 : enable
 
 // ---------------------------------------------------------------------------
 // Layout
@@ -357,13 +361,15 @@ update_mac_flags(result, dest);
 }
 
 // Read VI register as signed 16-bit value (VI[0] always returns 0)
-int vi_s16(uint r) { return int(vu.VI[r] << 16u) >> 16; }
+int vi_s16(uint r) { return r == 0u ? 0 : (int(vu.VI[r] << 16u) >> 16); }
 
-// Write VI register (never writes to r==0)
+// Write VI register (never writes to r==0).
+// Preserves full 32 bits for special registers (VI[20]=R, VI[21]=I,
+// VI[22]=Q-bits, VI[23]=P-bits); masks to 16 bits for general integer registers.
 void write_vi(uint r, uint val)
 {
-if (r != 0u)
-vu.VI[r] = val & 0xFFFFu;
+if (r == 0u) return;
+vu.VI[r] = (r >= 20u && r <= 23u) ? val : (val & 0xFFFFu);
 }
 
 // Read current I register (full 32-bit float, stored in VI[21])
