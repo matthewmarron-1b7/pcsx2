@@ -33,10 +33,18 @@ public:
 	VkShaderModule GetFragmentShader(std::string_view shader_code);
 	VkShaderModule GetComputeShader(std::string_view shader_code);
 
-private:
-	// SPIR-V compiled code type
+	// SPIR-V compiled code type (public so other Vulkan subsystems can use CompileComputeShaderToSPV)
 	using SPIRVCodeType = u32;
 	using SPIRVCodeVector = std::vector<SPIRVCodeType>;
+
+	/// Compile a GLSL compute shader source string to SPIR-V without needing the
+	/// full shader cache infrastructure (no file I/O, no pipeline cache).  The
+	/// caller is responsible for creating the VkShaderModule from the returned
+	/// byte vector.  Returns an empty optional if shaderc is unavailable or
+	/// compilation fails.
+	static std::optional<SPIRVCodeVector> CompileComputeShaderToSPV(std::string_view source, bool debug);
+
+private:
 
 	struct CacheIndexKey
 	{
