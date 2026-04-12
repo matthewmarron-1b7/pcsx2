@@ -674,6 +674,12 @@ VkShaderModule VKShaderCache::GetComputeShader(std::string_view shader_code)
 	return GetShaderModule(shaderc_glsl_compute_shader, std::move(shader_code));
 }
 
+std::optional<VKShaderCache::SPIRVCodeVector> VKShaderCache::CompileComputeShaderToSPV(
+	std::string_view source, bool debug)
+{
+	return CompileShaderToSPV(shaderc_glsl_compute_shader, source, debug);
+}
+
 std::optional<VKShaderCache::SPIRVCodeVector> VKShaderCache::CompileAndAddShaderSPV(
 	const CacheIndexKey& key, std::string_view shader_code)
 {
